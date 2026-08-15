@@ -1,0 +1,13 @@
+[project]
+name = "agent-cost-atlas"
+version = "0.2.0"
+description = "Reproducible discovery of open-source AI-agent cost tooling."
+requires-python = ">=3.13"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B", "SIM", "C4", "PTH", "RUF", "PERF"]
