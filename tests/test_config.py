@@ -14,7 +14,7 @@ project = "Agent Cost Atlas"
 
 [github]
 api_base_url = "https://api.github.com"
-api_version = "2022-11-28"
+api_version = "2026-03-10"
 user_agent = "agent-cost-atlas-tests/0.2"
 per_page = 100
 max_pages_per_query = 1
@@ -70,24 +70,22 @@ class ConfigTests(unittest.TestCase):
             'items = ["agent cost"]',
             'items = ["agent cost", "agent cost"]',
         )
-        with tempfile.TemporaryDirectory() as directory:
-            with self.assertRaises(ConfigurationError):
-                load_config(_write_config(Path(directory), body))
+        with tempfile.TemporaryDirectory() as directory, self.assertRaises(ConfigurationError):
+            load_config(_write_config(Path(directory), body))
 
     def test_unsupported_search_mode_is_rejected(self) -> None:
         body = MINIMAL_CONFIG.replace(
             'search_modes = ["best_match"]',
             'search_modes = ["best_match", "trending"]',
         )
-        with tempfile.TemporaryDirectory() as directory:
-            with self.assertRaises(ConfigurationError):
-                load_config(_write_config(Path(directory), body))
+        with tempfile.TemporaryDirectory() as directory, self.assertRaises(ConfigurationError):
+            load_config(_write_config(Path(directory), body))
 
     def test_missing_configuration_reports_the_resolved_path(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             missing = Path(directory) / "absent.toml"
-            with self.assertRaises(ConfigurationError):
-                resolve_config_path(missing)
+        with self.assertRaises(ConfigurationError):
+            resolve_config_path(missing)
 
     def test_configuration_resolves_outside_the_working_directory(self) -> None:
         with tempfile.TemporaryDirectory() as project, tempfile.TemporaryDirectory() as elsewhere:
