@@ -211,3 +211,4 @@ def discover(config: SearchConfig, results_dir: Path) -> DiscoveryRun:
     markdown_path, json_path = write_results(run, results_dir)
     print(f"Wrote {markdown_path} and {json_path}", flush=True)
     return run
+
