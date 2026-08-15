@@ -2,55 +2,88 @@
 
 Reproducible discovery of open-source software concerned with the economics of AI agents and LLM workflows.
 
-## Scope
+## Research objective
 
-This repository searches public GitHub repositories for software related to:
+The repository is a discovery instrument, not a pre-populated competitor list. It searches public GitHub repositories for software related to agent/LLM operating cost, cost estimation, future-spend forecasting, budget enforcement, pre-execution estimation, cost governance, and FinOps.
 
-- AI-agent and LLM operating costs
-- cost estimation
-- future-spend forecasting
-- budget enforcement
-- pre-deployment or pre-execution cost estimation
-- cost governance and FinOps
-- cost-aware agent execution
+Known competitor repository names are deliberately not seeded into the discovery protocol. Method-specific mathematical keywords are also not used as discovery terms. If a repository describes such a method in its own public text, that text may appear naturally in the recorded evidence.
 
-The discovery stage does not seed known competitor repository names.
+## Repository layout
 
-The search vocabulary is stored in [`queries.txt`](queries.txt), so the discovery procedure is inspectable and reproducible.
+```text
+agent-cost-atlas/
+├── README.md
+├── pyproject.toml
+├── .python-version
+├── config/
+│   └── search.toml
+├── src/
+│   └── agent\_cost\_atlas/
+│       ├── \_\_init\_\_.py
+│       ├── \_\_main\_\_.py
+│       ├── app.py
+│       ├── config.py
+│       ├── github.py
+│       ├── models.py
+│       ├── report.py
+│       ├── scoring.py
+│       └── text.py
+├── tests/
+│   ├── test\_config.py
+│   ├── test\_engine.py
+│   ├── test\_report.py
+│   └── test\_scoring.py
+├── results/
+│   └── README.md
+└── .github/
+    └── workflows/
+        └── discovery.yml
+```
+
+The root README contains documentation only. Source code lives under `src/`, research settings under `config/`, tests under `tests/`, and generated evidence under `results/`.
+
+## Discovery protocol
+
+`config/search.toml` is the inspectable research protocol. It defines:
+
+* neutral discovery queries;
+* GitHub API and pagination settings;
+* candidate-ranking weights;
+* functional/economic relevance terms;
+* two discovery views: GitHub best-match relevance and recently updated repositories.
+
+For every query/view pair, the generated report records GitHub's reported total, the number actually retrieved, page count, and whether collection was capped by the configured page limit. This makes incomplete query coverage visible rather than silently treating a truncated search as exhaustive.
+
+The strongest candidates then undergo README inspection. Retained records contain public GitHub metadata, matched searches, short README evidence, the README content hash reported by GitHub, and the current default-branch head SHA.
 
 ## Outputs
 
-Running the GitHub Action produces:
+A successful run creates:
 
-- [`RESULTS.md`](RESULTS.md) — human-readable ranked repository list
-- [`results.json`](results.json) — machine-readable evidence and search metadata
+* `results/latest.md` — human-readable ranked discovery table and query-coverage audit;
+* `results/latest.json` — machine-readable snapshot with provenance and repository state.
 
-Each retained repository includes its GitHub metadata, matched discovery queries, and README evidence where available.
+The initial version intentionally maintains only a current snapshot. The schema already records stable repository IDs, run timestamps, README hashes and branch-head SHAs so a later longitudinal phase can add timestamped snapshots, commit deltas and concise change summaries without redesigning the discovery layer.
 
-## Method
+## Run in GitHub
 
-1. Execute a set of neutral GitHub repository searches.
-2. Deduplicate repositories returned by different queries.
-3. Rank candidates using domain/economic relevance and recurrence across independent queries.
-4. Inspect the READMEs of the strongest candidates.
-5. Retain repositories containing both:
-   - AI-agent / LLM relevance, and
-   - economic / cost relevance.
-6. Produce a reproducible report.
+Open **Actions → Discover open-source agent-cost projects → Run workflow**.
 
-Popularity is deliberately a weak ranking signal. A small but highly relevant repository should be able to outrank a popular generic LLM project.
+The workflow validates formatting, lint rules, compilation and unit tests before performing network discovery. If discovery succeeds, GitHub Actions commits the generated snapshot back to the branch.
 
-## Running
+## Run from a checkout
 
-Open:
+```bash
+PYTHONPATH=src python -m agent\_cost\_atlas discover \\
+  --config config/search.toml \\
+  --results-dir results
+```
 
-**Actions → Discover open-source agent cost projects → Run workflow**
-
-The generated result files are committed back into this repository.
+The configuration resolver does not assume that the current working directory contains the configuration file. An explicit `--config` path is always accepted, and the default resolver can locate the repository root from the installed source tree or `GITHUB\_WORKSPACE`.
 
 ## Research status
 
-Discovery infrastructure only.
+**Phase 1: independent open-source discovery.**
 
-Interpretation, competitor classification, and the final open-source market report are performed separately after manual review of the retrieved repositories.# agent-cost-atlas
-Reproducible discovery of open-source tooling for AI agent cost estimation, forecasting and budget control.
+Manual interpretation, competitor classification and any broader research report are performed only after inspection of the generated evidence.
+
