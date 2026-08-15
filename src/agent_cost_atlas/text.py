@@ -5,7 +5,7 @@ from functools import lru_cache
 
 _WHITESPACE = re.compile(r"\s+")
 _MARKDOWN = re.compile(r"[`*_>#|\[\]()]")
-_SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+|\s+[–—-]\s+|\n+")
+_SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+|\s+[\u2013\u2014-]\s+|\n+")
 
 
 def normalize(text: str | None) -> str:
