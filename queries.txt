@@ -1,0 +1,59 @@
+# Neutral discovery queries.
+# One GitHub repository-search query per line.
+#
+# Do not add known competitor repository names here.
+# Search for the problem, not for an expected answer.
+
+ai agent cost
+ai agent costs
+ai agent budget
+ai agent spending
+ai agent finops
+ai agent cost governance
+ai agent cost estimation
+ai agent cost estimator
+ai agent cost forecast
+ai agent cost forecasting
+
+agentic ai cost
+agentic ai budget
+agentic ai finops
+agentic workflow cost
+agentic workflow budget
+agentic workflow cost estimate
+agentic workflow cost forecast
+
+llm agent cost
+llm agent costs
+llm agent budget
+llm agent spending
+llm agent cost estimator
+llm agent cost forecasting
+
+llm cost estimator
+llm cost estimate
+llm cost forecast
+llm cost forecasting
+llm budget
+llm budget guard
+llm budget control
+llm cost governance
+llm finops
+
+ai cost estimator
+ai cost forecasting
+ai cost governance
+ai finops
+
+preflight llm cost
+preflight agent cost
+pre-run agent cost
+agent cost projection
+agent spend projection
+agent budget exhaustion
+agent cost control
+agent cost gate
+agent budget gate
+agent cost limit
+agent cost monitoring
+agent unit economics
