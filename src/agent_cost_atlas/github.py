@@ -17,9 +17,35 @@ from .models import QueryStat
 
 JsonObject = dict[str, Any]
 
+# These statuses describe a repository state we can represent without making
+# the whole sweep unreliable. Other statuses are surfaced to the engine and
+# recorded as collection failures.
+TOLERATED_README_STATUSES = frozenset({404})
+TOLERATED_COMMIT_STATUSES = frozenset({404, 409})
+TRANSIENT_HTTP_STATUSES = frozenset({500, 502, 503, 504})
+
 
 class GitHubApiError(RuntimeError):
-    """Raised when the GitHub API cannot be queried reliably."""
+    """Raised when the GitHub API cannot be queried reliably.
+
+    ``status`` carries the HTTP status when the failure came from a response.
+    ``rate_limited`` distinguishes throttling from ordinary per-repository
+    failures; throttling must never be silently converted into missing data.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status: int | None = None,
+        rate_limited: bool = False,
+    ) -> None:
+        super().__init__(message)
+        self.status = status
+        self.rate_limited = rate_limited
+
+    def is_tolerable(self, statuses: frozenset[int]) -> bool:
+        return self.status in statuses and not self.rate_limited
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,19 +71,37 @@ class GitHubClient:
         return headers
 
     @staticmethod
-    def _wait_seconds(headers: Message, attempt: int) -> float:
+    def _is_rate_limited(status: int, headers: Message, body: str) -> bool:
+        """Recognize primary and secondary GitHub rate-limit responses."""
+        if status == 429:
+            return True
+        if status != 403:
+            return False
+        if headers.get("Retry-After") or headers.get("X-RateLimit-Remaining") == "0":
+            return True
+
+        message = body.casefold()
+        return "secondary rate limit" in message or "rate limit exceeded" in message
+
+    @staticmethod
+    def _rate_limit_wait_seconds(headers: Message, attempt: int) -> float:
         retry_after = headers.get("Retry-After")
         if retry_after:
             with suppress(ValueError):
                 return max(1.0, float(retry_after))
 
-        remaining = headers.get("X-RateLimit-Remaining")
         reset = headers.get("X-RateLimit-Reset")
-        if remaining == "0" and reset:
+        if headers.get("X-RateLimit-Remaining") == "0" and reset:
             with suppress(ValueError):
                 return max(1.0, float(reset) - time.time() + 1.0)
 
-        return min(60.0, float(2**attempt))
+        # GitHub's documented fallback for a secondary limit without either
+        # header is at least one minute, followed by increasing delays.
+        return min(300.0, 60.0 * (2 ** max(0, attempt - 1)))
+
+    @staticmethod
+    def _transient_wait_seconds(attempt: int) -> float:
+        return min(30.0, float(2 ** max(0, attempt - 1)))
 
     def _get(self, path: str, params: dict[str, str | int] | None = None) -> JsonObject:
         url = f"{self._config.api_base_url}{path}"
@@ -66,10 +110,11 @@ class GitHubClient:
         request = urllib.request.Request(url, headers=self._headers())
         last_error: Exception | None = None
 
-        for attempt in range(self._config.max_retries):
+        for attempt in range(1, self._config.max_retries + 1):
             try:
                 with urllib.request.urlopen(
-                    request, timeout=self._config.timeout_seconds
+                    request,
+                    timeout=self._config.timeout_seconds,
                 ) as response:
                     payload = json.load(response)
                     if not isinstance(payload, dict):
@@ -77,21 +122,35 @@ class GitHubClient:
                     return payload
             except urllib.error.HTTPError as exc:
                 body = exc.read().decode("utf-8", "replace")
-                if exc.code == 404:
-                    raise
-                if exc.code in {403, 429} and attempt + 1 < self._config.max_retries:
-                    delay = self._wait_seconds(exc.headers, attempt + 1)
-                    print(f"GitHub rate limit response; sleeping {delay:.1f}s", flush=True)
+                rate_limited = self._is_rate_limited(exc.code, exc.headers, body)
+
+                if rate_limited and attempt < self._config.max_retries:
+                    delay = self._rate_limit_wait_seconds(exc.headers, attempt)
+                    print(
+                        f"GitHub rate limit response; sleeping {delay:.1f}s",
+                        flush=True,
+                    )
                     time.sleep(delay)
                     continue
-                last_error = GitHubApiError(
-                    f"GitHub API returned HTTP {exc.code} for {url}: {body[:500]}"
-                )
-                break
+
+                if exc.code in TRANSIENT_HTTP_STATUSES and attempt < self._config.max_retries:
+                    delay = self._transient_wait_seconds(attempt)
+                    print(
+                        f"GitHub transient HTTP {exc.code}; sleeping {delay:.1f}s",
+                        flush=True,
+                    )
+                    time.sleep(delay)
+                    continue
+
+                raise GitHubApiError(
+                    f"GitHub API returned HTTP {exc.code} for {url}: {body[:300]}",
+                    status=exc.code,
+                    rate_limited=rate_limited,
+                ) from exc
             except (urllib.error.URLError, TimeoutError) as exc:
                 last_error = exc
-                if attempt + 1 < self._config.max_retries:
-                    time.sleep(min(30.0, float(2**attempt)))
+                if attempt < self._config.max_retries:
+                    time.sleep(self._transient_wait_seconds(attempt))
                     continue
                 break
 
@@ -131,6 +190,7 @@ class GitHubClient:
             time.sleep(self._config.search_delay_seconds)
 
         time.sleep(self._config.search_delay_seconds)
+        exhausted_pages = pages_retrieved >= self._config.max_pages_per_query
         return repositories, QueryStat(
             query=query,
             mode=mode,
@@ -138,14 +198,14 @@ class GitHubClient:
             retrieved=len(repositories),
             pages_retrieved=pages_retrieved,
             incomplete_results=incomplete,
-            capped_by_page_limit=total_count > len(repositories),
+            capped_by_page_limit=exhausted_pages and total_count > len(repositories),
         )
 
     def fetch_readme(self, full_name: str) -> ReadmeDocument:
         try:
             payload = self._get(f"/repos/{full_name}/readme")
-        except urllib.error.HTTPError as exc:
-            if exc.code == 404:
+        except GitHubApiError as exc:
+            if exc.is_tolerable(TOLERATED_README_STATUSES):
                 return ReadmeDocument(text="", sha=None)
             raise
 
@@ -165,8 +225,9 @@ class GitHubClient:
         branch = urllib.parse.quote(default_branch, safe="")
         try:
             payload = self._get(f"/repos/{full_name}/commits/{branch}")
-        except urllib.error.HTTPError as exc:
-            if exc.code in {404, 409}:
+        except GitHubApiError as exc:
+            # Empty repositories have no head commit and GitHub returns 409.
+            if exc.is_tolerable(TOLERATED_COMMIT_STATUSES):
                 return None
             raise
 
