@@ -13,6 +13,7 @@ class QueryStat:
     pages_retrieved: int
     incomplete_results: bool
     capped_by_page_limit: bool
+    error: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +56,7 @@ class DiscoveryRun:
     final_count: int
     query_stats: tuple[QueryStat, ...]
     repositories: tuple[RepositoryRecord, ...]
+    inspection_failures: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
