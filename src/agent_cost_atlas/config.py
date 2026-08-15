@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-
 DEFAULT_CONFIG = Path("config/search.toml")
 
 
@@ -86,7 +85,7 @@ def _integer(table: dict[str, Any], key: str, *, minimum: int = 0) -> int:
 
 def _number(table: dict[str, Any], key: str, *, minimum: float = 0.0) -> float:
     value = table.get(key)
-    if not isinstance(value, (int, float)) or isinstance(value, bool) or value < minimum:
+    if not isinstance(value, int | float) or isinstance(value, bool) or value < minimum:
         raise ConfigurationError(f"{key!r} must be a number >= {minimum}")
     return float(value)
 
